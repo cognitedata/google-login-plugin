@@ -7,7 +7,7 @@
   </parent>
 
   <artifactId>google-login</artifactId>
-  <version>1.7-SNAPSHOT</version>
+  <version>1.7-SNAPSHOT-groups</version>
   <packaging>hpi</packaging>
 
   <scm>

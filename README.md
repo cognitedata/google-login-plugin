@@ -16,3 +16,12 @@ Instructions to create the Client ID and Secret:
  1. The application type should be "Web Application"
  1. The authorized redirect URLs should contain ${JENKINS_ROOT_URL}/securityRealm/finishLogin
  1. Enter the created Client ID and secret in the Security Realm Configuration
+
+Building:
+=========
+
+``` bash
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+mvn install -Dmaven.test.failure.ignore -Djava.level=8 -DskipTests -Dmaven.javadoc.skip=true -e
+```
+
