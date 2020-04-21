@@ -45,10 +45,10 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.JsonObjectParser;
 import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.services.admin.directory.Directory;
-import com.google.api.services.admin.directory.DirectoryScopes;
-import com.google.api.services.admin.directory.model.Group;
-import com.google.api.services.admin.directory.model.Groups;
+import com.google.api.services.directory.Directory;
+import com.google.api.services.directory.DirectoryScopes;
+import com.google.api.services.directory.model.Group;
+import com.google.api.services.directory.model.Groups;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import hudson.Extension;
@@ -58,13 +58,14 @@ import hudson.model.Failure;
 import hudson.model.User;
 import hudson.security.ACL;
 import hudson.security.SecurityRealm;
+import hudson.security.SecurityRealm.SecurityComponents;
 import hudson.util.HttpResponses;
 import hudson.util.ListBoxModel;
 import hudson.util.Secret;
 import java.io.IOException;
 import java.util.*;
-import java.util.Arrays;
-import java.util.StringTokenizer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import jenkins.model.Jenkins;
 import jenkins.security.SecurityListener;
 import org.acegisecurity.*;
@@ -89,6 +90,8 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
  *
  */
 public class GoogleOAuth2SecurityRealm extends SecurityRealm {
+
+    private static final Logger LOGGER = Logger.getLogger(GoogleOAuth2SecurityRealm.class.getName());
 
     /**
      * OAuth 2 scope. This is enough to call a variety of userinfo api's.
@@ -212,7 +215,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
     public SecurityComponents createSecurityComponents() {
         return new SecurityComponents(new AuthenticationManager() {
             public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-                if (authentication instanceof AnonymousAuthenticationToken) return authentication;
+                if (authentication instanceof AnonymousAuthenticationToken)
+                    return authentication;
                 throw new BadCredentialsException("Unexpected authentication type: " + authentication);
             }
         });
@@ -234,13 +238,13 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         final String redirectOnFinish = getRedirectOnFinish(from, referer);
 
         final AuthorizationCodeFlow flow = new AuthorizationCodeFlow.Builder(
-                        BearerToken.queryParameterAccessMethod(),
-                        HTTP_TRANSPORT,
-                        JSON_FACTORY,
-                        TOKEN_SERVER_URL,
-                        new ClientParametersAuthentication(clientId, clientSecret.getPlainText()),
-                        clientId,
-                        AUTHORIZATION_SERVER_URL)
+                BearerToken.queryParameterAccessMethod(),
+                HTTP_TRANSPORT,
+                JSON_FACTORY,
+                TOKEN_SERVER_URL,
+                new ClientParametersAuthentication(clientId, clientSecret.getPlainText()),
+                clientId,
+                AUTHORIZATION_SERVER_URL)
                 .setScopes(Arrays.asList(SCOPE))
                 .build();
 
@@ -257,8 +261,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     }
                     final Credential credential = flow.createAndStoreCredential(response, null);
 
-                    HttpRequestFactory requestFactory =
-                            HTTP_TRANSPORT.createRequestFactory(new HttpRequestInitializer() {
+                    HttpRequestFactory requestFactory = HTTP_TRANSPORT
+                            .createRequestFactory(new HttpRequestInitializer() {
                                 public void initialize(HttpRequest request) throws IOException {
                                     credential.initialize(request);
                                     request.setParser(new JsonObjectParser(JSON_FACTORY));
@@ -360,8 +364,7 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                 CredentialsMatchers.withId(this.gsuiteServiceAccountCredentialsId));
 
         if (serviceAccount.size() > 0) {
-            GoogleCredential googleCredential =
-                    GoogleCredential.fromStream(serviceAccount.get(0).getContent());
+            GoogleCredential googleCredential = GoogleCredential.fromStream(serviceAccount.get(0).getContent());
             return new GoogleCredential.Builder()
                     .setTransport(HTTP_TRANSPORT)
                     .setJsonFactory(JSON_FACTORY)
@@ -377,17 +380,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         }
     }
 
-    private Set<? extends GrantedAuthority> getGroupsForUser(String email) {
-        if (this.gsuiteServiceAccountCredentialsId == null) {
-            return Sets.newHashSet();
-        }
-
+    private void getGroupsForEmail(Directory googleAdminDirectoryService, String email, Set<String> foundGroups) {
         try {
-            Directory googleAdminDirectoryService = new Directory.Builder(
-                            HTTP_TRANSPORT, JSON_FACTORY, getGoogleCredentials())
-                    .setApplicationName(Jenkins.getInstance().getDisplayName())
-                    .build();
-            Set<GrantedAuthorityImpl> groups = new HashSet<>();
             String pageToken = null;
 
             do {
@@ -401,11 +395,37 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     break;
                 }
                 for (Group group : groupsResult.getGroups()) {
-                    groups.add(new GrantedAuthorityImpl(group.getEmail()));
+                    if (!foundGroups.contains(group.getEmail())) {
+                        foundGroups.add(group.getEmail());
+                        getGroupsForEmail(googleAdminDirectoryService, group.getEmail(), foundGroups);
+                    }
                 }
                 pageToken = groupsResult.getNextPageToken();
             } while (pageToken != null);
+            return;
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Could not fetch groups from the Google Admin SDK API", e);
+            return;
+        }
+    }
 
+    private Set<? extends GrantedAuthority> getGroupsForUser(String email) {
+        if (this.gsuiteServiceAccountCredentialsId == null) {
+            return Sets.newHashSet();
+        }
+
+        try {
+            Directory googleAdminDirectoryService = new Directory.Builder(
+                    HTTP_TRANSPORT, JSON_FACTORY, getGoogleCredentials())
+                    .setApplicationName(Jenkins.getInstance().getDisplayName())
+                    .build();
+            Set<String> foundGroups = new HashSet<>();
+            Set<GrantedAuthorityImpl> groups = new HashSet<>();
+
+            getGroupsForEmail(googleAdminDirectoryService, email, foundGroups);
+            for (String groupEmail : foundGroups) {
+                groups.add(new GrantedAuthorityImpl(groupEmail));
+            }
             return groups;
         } catch (IOException e) {
             return Sets.newHashSet();
@@ -469,7 +489,7 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                                             ? URIRequirementBuilder.fromUri(serverUrl)
                                                     .build()
                                             : Collections.EMPTY_LIST //
-                                    ));
+                            ));
         }
     }
 }
