@@ -351,15 +351,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         }
     }
 
-    private Set<? extends GrantedAuthority> getGroupsForUser(String email) {
-        if (this.gsuiteServiceAccountCredentialsId == null) {
-            return Sets.newHashSet();
-        }
-
+    private void getGroupsForEmail(Directory googleAdminDirectoryService, String email, Set<String> foundGroups) {
         try {
-            Directory googleAdminDirectoryService = new Directory.Builder(HTTP_TRANSPORT, JSON_FACTORY, getGoogleCredentials())
-                    .setApplicationName(Jenkins.getInstance().getDisplayName()).build();
-            Set<GrantedAuthorityImpl> groups = new HashSet<>();
             String pageToken = null;
 
             do {
@@ -371,11 +364,35 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     break;
                 }
                 for (Group group : groupsResult.getGroups()) {
-                    groups.add(new GrantedAuthorityImpl(group.getEmail()));
+                    if (!foundGroups.contains(group.getEmail())) {
+                        foundGroups.add(group.getEmail());
+                        getGroupsForEmail(googleAdminDirectoryService, group.getEmail(), foundGroups);
+                    }
                 }
                 pageToken = groupsResult.getNextPageToken();
             } while (pageToken != null);
 
+            return;
+        } catch (IOException e) {
+            return;
+        }
+    }
+
+    private Set<? extends GrantedAuthority> getGroupsForUser(String email) {
+        if (this.gsuiteServiceAccountCredentialsId == null) {
+            return Sets.newHashSet();
+        }
+
+        try {
+            Directory googleAdminDirectoryService = new Directory.Builder(HTTP_TRANSPORT, JSON_FACTORY, getGoogleCredentials())
+                    .setApplicationName(Jenkins.getInstance().getDisplayName()).build();
+            Set<String> foundGroups = new HashSet<>();
+            Set<GrantedAuthorityImpl> groups = new HashSet<>();
+
+            getGroupsForEmail(googleAdminDirectoryService, email, foundGroups);
+            for (String groupEmail : foundGroups) {
+                groups.add(new GrantedAuthorityImpl(groupEmail));
+            }
             return groups;
         } catch (IOException e) {
             return Sets.newHashSet();
