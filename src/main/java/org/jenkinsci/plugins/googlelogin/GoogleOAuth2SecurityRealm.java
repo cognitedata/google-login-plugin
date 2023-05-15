@@ -79,6 +79,8 @@ import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.interceptor.RequirePOST;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import java.io.IOException;
 import java.util.*;
@@ -88,6 +90,8 @@ import java.util.*;
  *
  */
 public class GoogleOAuth2SecurityRealm extends SecurityRealm {
+
+    private static final Logger LOGGER = Logger.getLogger(GoogleOAuth2SecurityRealm.class.getName());
 
     /**
      * OAuth 2 scope. This is enough to call a variety of userinfo api's.
@@ -371,9 +375,9 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                 }
                 pageToken = groupsResult.getNextPageToken();
             } while (pageToken != null);
-
             return;
         } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Could not fetch groups from the Google Admin SDK API", e);
             return;
         }
     }
