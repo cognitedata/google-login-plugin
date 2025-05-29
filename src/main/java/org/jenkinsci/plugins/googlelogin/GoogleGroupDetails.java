@@ -1,7 +1,6 @@
 package org.jenkinsci.plugins.googlelogin;
 
 import hudson.security.GroupDetails;
-
 import java.util.Set;
 
 public class GoogleGroupDetails extends GroupDetails {

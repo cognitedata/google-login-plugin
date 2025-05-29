@@ -42,7 +42,7 @@
       <dependency>
         <groupId>com.google.cloud</groupId>
         <artifactId>libraries-bom</artifactId>
-        <version>26.29.0</version>
+        <version>26.61.0</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -57,6 +57,18 @@
   </dependencyManagement>
 
   <dependencies>
+    <dependency>
+      <groupId>com.google.apis</groupId>
+      <artifactId>google-api-services-admin-directory</artifactId>
+      <version>directory_v1-rev85-1.20.0</version>
+    </dependency>
+
+    <!-- Explicitly defined to make Maven happy -->
+    <dependency>
+      <groupId>com.google.errorprone</groupId>
+      <artifactId>error_prone_annotations</artifactId>
+      <version>2.37.0</version>
+    </dependency>
     <!-- com.google.http-client -->
     <dependency>
       <groupId>com.google.http-client</groupId>
@@ -123,6 +135,13 @@
         </exclusion>
       </exclusions>
     </dependency>
+
+    <!-- Explicitly defined to make Maven happy -->
+    <dependency>
+      <groupId>commons-codec</groupId>
+      <artifactId>commons-codec</artifactId>
+      <version>1.17.1</version>
+    </dependency>
     <dependency>
       <groupId>io.jenkins.plugins</groupId>
       <artifactId>gson-api</artifactId>
@@ -133,26 +152,19 @@
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
-      <artifactId>jackson2-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.google.apis</groupId>
-      <artifactId>google-api-services-admin-directory</artifactId>
-      <version>directory_v1-rev85-1.20.0</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>credentials</artifactId>
-      <version>2.1.19</version>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
-      <artifactId>plain-credentials</artifactId>
-      <version>1.4</version>
+      <artifactId>jackson2-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>mailer</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>plain-credentials</artifactId>
     </dependency>
   </dependencies>
 

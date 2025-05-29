@@ -62,6 +62,7 @@ import hudson.util.HttpResponses;
 import hudson.util.ListBoxModel;
 import hudson.util.Secret;
 import java.io.IOException;
+import java.util.*;
 import java.util.Arrays;
 import java.util.StringTokenizer;
 import jenkins.model.Jenkins;
@@ -82,9 +83,6 @@ import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.interceptor.RequirePOST;
-
-import java.io.IOException;
-import java.util.*;
 
 /**
  * Login with Google using OpenID Connect / OAuth 2
@@ -142,8 +140,13 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
     private final String gsuiteImpersonationAccount;
 
     @DataBoundConstructor
-    public GoogleOAuth2SecurityRealm(String clientId, String clientSecret, String domain,
-            String gsuiteServiceAccountCredentialsId, String gsuiteImpersonationAccount) throws IOException {
+    public GoogleOAuth2SecurityRealm(
+            String clientId,
+            String clientSecret,
+            String domain,
+            String gsuiteServiceAccountCredentialsId,
+            String gsuiteImpersonationAccount)
+            throws IOException {
         this.clientId = clientId;
         this.clientSecret = Secret.fromString(clientSecret);
         this.domain = Util.fixEmptyAndTrim(domain);
@@ -209,8 +212,7 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
     public SecurityComponents createSecurityComponents() {
         return new SecurityComponents(new AuthenticationManager() {
             public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-                if (authentication instanceof AnonymousAuthenticationToken)
-                    return authentication;
+                if (authentication instanceof AnonymousAuthenticationToken) return authentication;
                 throw new BadCredentialsException("Unexpected authentication type: " + authentication);
             }
         });
@@ -232,13 +234,13 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         final String redirectOnFinish = getRedirectOnFinish(from, referer);
 
         final AuthorizationCodeFlow flow = new AuthorizationCodeFlow.Builder(
-                BearerToken.queryParameterAccessMethod(),
-                HTTP_TRANSPORT,
-                JSON_FACTORY,
-                TOKEN_SERVER_URL,
-                new ClientParametersAuthentication(clientId, clientSecret.getPlainText()),
-                clientId,
-                AUTHORIZATION_SERVER_URL)
+                        BearerToken.queryParameterAccessMethod(),
+                        HTTP_TRANSPORT,
+                        JSON_FACTORY,
+                        TOKEN_SERVER_URL,
+                        new ClientParametersAuthentication(clientId, clientSecret.getPlainText()),
+                        clientId,
+                        AUTHORIZATION_SERVER_URL)
                 .setScopes(Arrays.asList(SCOPE))
                 .build();
 
@@ -255,8 +257,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     }
                     final Credential credential = flow.createAndStoreCredential(response, null);
 
-                    HttpRequestFactory requestFactory = HTTP_TRANSPORT
-                            .createRequestFactory(new HttpRequestInitializer() {
+                    HttpRequestFactory requestFactory =
+                            HTTP_TRANSPORT.createRequestFactory(new HttpRequestInitializer() {
                                 public void initialize(HttpRequest request) throws IOException {
                                     credential.initialize(request);
                                     request.setParser(new JsonObjectParser(JSON_FACTORY));
@@ -273,8 +275,8 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     authorities.addAll(getGroupsForUser(info.getEmail()));
 
                     // logs this user in.
-                    UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(info.getEmail(),
-                            "", authorities.toArray(new GrantedAuthority[] {}));
+                    UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(
+                            info.getEmail(), "", authorities.toArray(new GrantedAuthority[] {}));
 
                     // prevent session fixation attack
                     Stapler.getCurrentRequest().getSession().invalidate();
@@ -344,20 +346,22 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         }
     }
 
-    <<<<<<<HEAD=======
-
     private GoogleCredential getGoogleCredentials() throws IOException {
         if (this.gsuiteServiceAccountCredentialsId == null) {
             return null;
         }
 
         List<FileCredentials> serviceAccount = CredentialsMatchers.filter(
-                CredentialsProvider.lookupCredentials(FileCredentials.class, Jenkins.getInstance(), ACL.SYSTEM,
+                CredentialsProvider.lookupCredentials(
+                        FileCredentials.class,
+                        Jenkins.getInstance(),
+                        ACL.SYSTEM,
                         Collections.<DomainRequirement>emptyList()),
                 CredentialsMatchers.withId(this.gsuiteServiceAccountCredentialsId));
 
         if (serviceAccount.size() > 0) {
-            GoogleCredential googleCredential = GoogleCredential.fromStream(serviceAccount.get(0).getContent());
+            GoogleCredential googleCredential =
+                    GoogleCredential.fromStream(serviceAccount.get(0).getContent());
             return new GoogleCredential.Builder()
                     .setTransport(HTTP_TRANSPORT)
                     .setJsonFactory(JSON_FACTORY)
@@ -379,14 +383,17 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         }
 
         try {
-            Directory googleAdminDirectoryService = new Directory.Builder(HTTP_TRANSPORT, JSON_FACTORY,
-                    getGoogleCredentials())
-                    .setApplicationName(Jenkins.getInstance().getDisplayName()).build();
+            Directory googleAdminDirectoryService = new Directory.Builder(
+                            HTTP_TRANSPORT, JSON_FACTORY, getGoogleCredentials())
+                    .setApplicationName(Jenkins.getInstance().getDisplayName())
+                    .build();
             Set<GrantedAuthorityImpl> groups = new HashSet<>();
             String pageToken = null;
 
             do {
-                Groups groupsResult = googleAdminDirectoryService.groups().list()
+                Groups groupsResult = googleAdminDirectoryService
+                        .groups()
+                        .list()
                         .setUserKey(email)
                         .setMaxResults(200)
                         .execute();
@@ -404,8 +411,6 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
             return Sets.newHashSet();
         }
     }
-
-    >>>>>>>139a00f (Implement JENKINS-28010 Use Google Apps group for Authorization)
 
     /**
      * This is where the user comes back to at the end of the OpenID redirect
@@ -452,17 +457,19 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         @RequirePOST
         public ListBoxModel doFillGsuiteServiceAccountCredentialsIdItems(@QueryParameter String serverUrl) {
             Jenkins.getInstance().checkPermission(Jenkins.ADMINISTER);
-            return new StandardListBoxModel().withEmptySelection() //
+            return new StandardListBoxModel()
+                    .withEmptySelection() //
                     .withMatching( //
                             CredentialsMatchers.instanceOf(FileCredentials.class),
-                            CredentialsProvider.lookupCredentials(StandardCredentials.class, //
+                            CredentialsProvider.lookupCredentials(
+                                    StandardCredentials.class, //
                                     Jenkins.getInstance(), //
                                     ACL.SYSTEM, //
-                                    serverUrl != null ? URIRequirementBuilder.fromUri(serverUrl).build()
+                                    serverUrl != null
+                                            ? URIRequirementBuilder.fromUri(serverUrl)
+                                                    .build()
                                             : Collections.EMPTY_LIST //
-                            ));
-
+                                    ));
         }
-
     }
 }
