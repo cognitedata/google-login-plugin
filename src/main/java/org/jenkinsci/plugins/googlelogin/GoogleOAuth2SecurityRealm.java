@@ -85,6 +85,9 @@ import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 
+import com.google.api.services.cloudidentity.v1.CloudIdentityScopes;
+import com.google.api.services.cloudidentity.v1.model.GroupRelation;
+
 /**
  * Login with Google using OpenID Connect / OAuth 2
  *
@@ -370,7 +373,9 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     .setJsonFactory(JSON_FACTORY)
                     .setServiceAccountUser(this.gsuiteImpersonationAccount)
                     .setServiceAccountId(googleCredential.getServiceAccountId())
-                    .setServiceAccountScopes(Sets.newHashSet(DirectoryScopes.ADMIN_DIRECTORY_GROUP_READONLY))
+                    .setServiceAccountScopes(Sets.newHashSet(
+                            DirectoryScopes.ADMIN_DIRECTORY_GROUP_READONLY,
+                            CloudIdentityScopes.CLOUD_IDENTITY_GROUPS_READONLY))
                     .setServiceAccountPrivateKey(googleCredential.getServiceAccountPrivateKey())
                     .setServiceAccountPrivateKeyId(googleCredential.getServiceAccountPrivateKeyId())
                     .setTokenServerEncodedUrl(googleCredential.getTokenServerEncodedUrl())
@@ -414,18 +419,24 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
             return Sets.newHashSet();
         }
 
-        try {
-            Directory googleAdminDirectoryService = new Directory.Builder(
-                    HTTP_TRANSPORT, JSON_FACTORY, getGoogleCredentials())
-                    .setApplicationName(Jenkins.getInstance().getDisplayName())
-                    .build();
-            Set<String> foundGroups = new HashSet<>();
-            Set<GrantedAuthorityImpl> groups = new HashSet<>();
+        Set<GrantedAuthorityImpl> groups = new HashSet<>();
 
-            getGroupsForEmail(googleAdminDirectoryService, email, foundGroups);
-            for (String groupEmail : foundGroups) {
-                groups.add(new GrantedAuthorityImpl(groupEmail));
+        try {
+            GoogleIdentityGroups googleIdentityGroups = new GoogleIdentityGroups();
+            GoogleCredential credential = getGoogleCredentials();
+            List<GroupRelation> transitiveGroups = googleIdentityGroups.getTransitiveGroupsForUser(credential, email);
+
+            for (GroupRelation group : transitiveGroups) {
+                if (group.getGroupKey() != null) {
+                    String groupId = group.getGroupKey().getId();
+                    groups.add(new GrantedAuthorityImpl(groupId));
+                    LOGGER.log(Level.INFO, "GroupRelation has group key with id {0} for user: {1}",
+                            new Object[] { groupId, email });
+                } else {
+                    LOGGER.log(Level.WARNING, "GroupRelation has no group key for user: {0}", email);
+                }
             }
+
             return groups;
         } catch (IOException e) {
             return Sets.newHashSet();
