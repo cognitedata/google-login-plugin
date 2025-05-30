@@ -142,19 +142,26 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
      */
     private final String gsuiteImpersonationAccount;
 
+    /**
+     * Regex to match against the group names.
+     */
+    private final String groupsRegex;
+
     @DataBoundConstructor
     public GoogleOAuth2SecurityRealm(
             String clientId,
             String clientSecret,
             String domain,
             String gsuiteServiceAccountCredentialsId,
-            String gsuiteImpersonationAccount)
+            String gsuiteImpersonationAccount,
+            String groupsRegex)
             throws IOException {
         this.clientId = clientId;
         this.clientSecret = Secret.fromString(clientSecret);
         this.domain = Util.fixEmptyAndTrim(domain);
         this.gsuiteServiceAccountCredentialsId = gsuiteServiceAccountCredentialsId;
         this.gsuiteImpersonationAccount = gsuiteImpersonationAccount;
+        this.groupsRegex = Util.fixEmptyAndTrim(groupsRegex);
     }
 
     @SuppressWarnings("unused") // jelly
@@ -190,6 +197,11 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
     @SuppressWarnings("unused") // jelly
     public String getGsuiteImpersonationAccount() {
         return gsuiteImpersonationAccount;
+    }
+
+    @SuppressWarnings("unused") // jelly
+    public String getGroupsRegex() {
+        return groupsRegex;
     }
 
     /**
@@ -380,6 +392,14 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
         }
     }
 
+    private boolean groupAllowed(String groupEmail) {
+        if (groupsRegex == null || groupsRegex.isEmpty()) {
+            return true;
+        }
+
+        return groupEmail.matches(groupsRegex);
+    }
+
     private void getGroupsForEmail(Directory googleAdminDirectoryService, String email, Set<String> foundGroups) {
         try {
             String pageToken = null;
@@ -395,9 +415,10 @@ public class GoogleOAuth2SecurityRealm extends SecurityRealm {
                     break;
                 }
                 for (Group group : groupsResult.getGroups()) {
-                    if (!foundGroups.contains(group.getEmail())) {
-                        foundGroups.add(group.getEmail());
-                        getGroupsForEmail(googleAdminDirectoryService, group.getEmail(), foundGroups);
+                    String groupEmail = group.getEmail();
+                    if (groupAllowed(groupEmail) && !foundGroups.contains(groupEmail)) {
+                        foundGroups.add(groupEmail);
+                        getGroupsForEmail(googleAdminDirectoryService, groupEmail, foundGroups);
                     }
                 }
                 pageToken = groupsResult.getNextPageToken();

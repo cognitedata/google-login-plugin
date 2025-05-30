@@ -18,4 +18,7 @@
   <f:entry title="${%GSuite Impersonation Account}" field="gsuiteImpersonationAccount">
     <f:textbox autocomplete="off"/>
   </f:entry>
+  <f:entry title="${%GSuite Groups Regex}" field="groupsRegex">
+    <f:textbox autocomplete="off"/>
+  </f:entry>
 </j:jelly>
